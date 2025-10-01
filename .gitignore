@@ -7,6 +7,16 @@ build
 
 geckodriver.log
 
+# Training logs and game records
+logs/*.txt
+machine_learning/*/output.txt
+
+# Model checkpoints (keep only final trained models)
+machine_learning/*/*_[0-9]*.dat
+!machine_learning/*/*_1000.dat
+!machine_learning/*/*_100.dat
+!machine_learning/*/*_5.dat
+
 # Prerequisites
 *.d
 
