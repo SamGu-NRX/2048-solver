@@ -49,3 +49,5 @@ machine_learning/*/*_[0-9]*.dat
 *.exe
 *.out
 *.app
+
+vendor/
