@@ -14,15 +14,17 @@ static constexpr int ROWS = 0x10000;
 static constexpr row_t ROW_MASK = 0xFFFF;
 
 // precomputed array for reversing a row on the board
-consteval std::array<row_t, ROWS> generate_reversed() {
-    std::array<row_t, ROWS> reversed;
-    for (int row = 0; row < ROWS; ++row) {
-        reversed[row] = ((row & 0xF) << 12) | (((row >> 4) & 0xF) << 8) | (((row >> 8) & 0xF) << 4) | (row >> 12);
-    }
-    return reversed;
+std::array<row_t, ROWS> generate_reversed() {
+    return [] {
+        std::array<row_t, ROWS> reversed{};
+        for (int row = 0; row < ROWS; ++row) {
+            reversed[row] = ((row & 0xF) << 12) | (((row >> 4) & 0xF) << 8) | (((row >> 8) & 0xF) << 4) | (row >> 12);
+        }
+        return reversed;
+    }();
 }
 
-constexpr std::array<row_t, ROWS> reversed = generate_reversed();
+const std::array<row_t, ROWS> reversed = generate_reversed();
 
 // bitmask of whether a tile is empty or not
 // more formally, converts a 64-bit integer (which has 16 bytes) into a 16-bit integer where

@@ -13,36 +13,38 @@ class Strategy;  // Strategy depends on GameSimulator and will be #include-ed at
 //static constexpr row_t WINNING_ROW = 0xFFFF; // 2^16 - 1, represents [32768, 32768, 32768, 32768], which is very unlikely
 
 // generates the precomputed arrays to compute the results of making a move
-consteval std::array<row_t, ROWS> generate_shift() {
-    std::array<row_t, ROWS> shift;
-    for (int row = 0; row < ROWS; ++row) {
-        int r[4] = {(row >> 12) & 0xF, (row >> 8) & 0xF, (row >> 4) & 0xF, row & 0xF};
+std::array<row_t, ROWS> generate_shift() {
+    return [] {
+        std::array<row_t, ROWS> shift{};
+        for (int row = 0; row < ROWS; ++row) {
+            int r[4] = {(row >> 12) & 0xF, (row >> 8) & 0xF, (row >> 4) & 0xF, row & 0xF};
 
-        // pull values to the left
-        for (int i = 0; i < 3; ++i) {
-            if (r[0] == 0 && r[1] > 0) r[0] = r[1], r[1] = 0;
-            if (r[1] == 0 && r[2] > 0) r[1] = r[2], r[2] = 0;
-            if (r[2] == 0 && r[3] > 0) r[2] = r[3], r[3] = 0;
+            // pull values to the left
+            for (int i = 0; i < 3; ++i) {
+                if (r[0] == 0 && r[1] > 0) r[0] = r[1], r[1] = 0;
+                if (r[1] == 0 && r[2] > 0) r[1] = r[2], r[2] = 0;
+                if (r[2] == 0 && r[3] > 0) r[2] = r[3], r[3] = 0;
+            }
+
+            // perform the merging
+            if (r[0] > 0 && r[0] == r[1]) r[0]++, r[1] = 0;
+            if (r[1] > 0 && r[1] == r[2]) r[1]++, r[2] = 0;
+            if (r[2] > 0 && r[2] == r[3]) r[2]++, r[3] = 0;
+
+            // pull values to the left again
+            for (int i = 0; i < 3; ++i) {
+                if (r[0] == 0 && r[1] > 0) r[0] = r[1], r[1] = 0;
+                if (r[1] == 0 && r[2] > 0) r[1] = r[2], r[2] = 0;
+                if (r[2] == 0 && r[3] > 0) r[2] = r[3], r[3] = 0;
+            }
+
+
+            // we can't handle a 65536 tile in this representation, but it's unlikely that we'll ever reach that tile
+            // for now just cap values at 2^15
+            shift[row] = (std::min(r[0], 15) << 12) | (std::min(r[1], 15) << 8) | (std::min(r[2], 15) << 4) | std::min(r[3], 15);
         }
-
-        // perform the merging
-        if (r[0] > 0 && r[0] == r[1]) r[0]++, r[1] = 0;
-        if (r[1] > 0 && r[1] == r[2]) r[1]++, r[2] = 0;
-        if (r[2] > 0 && r[2] == r[3]) r[2]++, r[3] = 0;
-
-        // pull values to the left again
-        for (int i = 0; i < 3; ++i) {
-            if (r[0] == 0 && r[1] > 0) r[0] = r[1], r[1] = 0;
-            if (r[1] == 0 && r[2] > 0) r[1] = r[2], r[2] = 0;
-            if (r[2] == 0 && r[3] > 0) r[2] = r[3], r[3] = 0;
-        }
-
-
-        // we can't handle a 65536 tile in this representation, but it's unlikely that we'll ever reach that tile
-        // for now just cap values at 2^15
-        shift[row] = (std::min(r[0], 15) << 12) | (std::min(r[1], 15) << 8) | (std::min(r[2], 15) << 4) | std::min(r[3], 15);
-    }
-    return shift;
+        return shift;
+    }();
 }
 
 // the game mechanics include adding an tile to an empty position
@@ -52,33 +54,37 @@ consteval std::array<row_t, ROWS> generate_shift() {
 // all empty tiles are in a single array, and a second array stores pointers to which sections correspond to which tile masks
 static constexpr int EMPTY_TILE_POSITIONS = 524288;  // exactly 524288 different values across all tile_masks
 static constexpr int EMPTY_MASKS = 0x10000;  // number of tile_masks, where an tile_mask stores whether a tile is empty
-consteval std::array<uint8_t, EMPTY_TILE_POSITIONS> generate_empty_tiles() {
-    std::array<uint8_t, EMPTY_TILE_POSITIONS> empty_tiles;
-    int idx = 0;
-    for (int em = 0; em < EMPTY_MASKS; ++em) {
-        for (int pos = 0; pos < 16; ++pos) {
-            if (((em >> pos) & 1) == 0) {
-                empty_tiles[idx++] = 4 * pos;
+std::array<uint8_t, EMPTY_TILE_POSITIONS> generate_empty_tiles() {
+    return [] {
+        std::array<uint8_t, EMPTY_TILE_POSITIONS> empty_tiles{};
+        int idx = 0;
+        for (int em = 0; em < EMPTY_MASKS; ++em) {
+            for (int pos = 0; pos < 16; ++pos) {
+                if (((em >> pos) & 1) == 0) {
+                    empty_tiles[idx++] = 4 * pos;
+                }
             }
         }
-    }
-    assert(idx == EMPTY_TILE_POSITIONS);
-    return empty_tiles;
+        assert(idx == EMPTY_TILE_POSITIONS);
+        return empty_tiles;
+    }();
 }
 
-consteval std::array<int, EMPTY_MASKS> generate_empty_index() {
-    std::array<int, EMPTY_MASKS> empty_index;
-    int idx = 0;
-    for (int em = 0; em < EMPTY_MASKS; ++em) {
-        empty_index[em] = idx;
-        for (int pos = 0; pos < 16; ++pos) {
-            if (((em >> pos) & 1) == 0) {
-                ++idx;
+std::array<int, EMPTY_MASKS> generate_empty_index() {
+    return [] {
+        std::array<int, EMPTY_MASKS> empty_index{};
+        int idx = 0;
+        for (int em = 0; em < EMPTY_MASKS; ++em) {
+            empty_index[em] = idx;
+            for (int pos = 0; pos < 16; ++pos) {
+                if (((em >> pos) & 1) == 0) {
+                    ++idx;
+                }
             }
         }
-    }
-    assert(idx == EMPTY_TILE_POSITIONS);
-    return empty_index;
+        assert(idx == EMPTY_TILE_POSITIONS);
+        return empty_index;
+    }();
 }
 
 class GameSimulator {
@@ -86,12 +92,12 @@ class GameSimulator {
 
     static constexpr uint16_t FULL_MASK = 0xFFFF;
 
-    static constexpr std::array<row_t, ROWS> shift = generate_shift();
+    static const std::array<row_t, ROWS> shift;
 
     // this uses a fancy way of implementing adjacency lists in competitive programming
     // stores the empty tile positions for each tile_mask
-    static constexpr std::array<uint8_t, EMPTY_TILE_POSITIONS> empty_tiles = generate_empty_tiles();
-    static constexpr std::array<int, EMPTY_MASKS> empty_index = generate_empty_index();  // a pointer to where this tile_mask starts
+    static const std::array<uint8_t, EMPTY_TILE_POSITIONS> empty_tiles;
+    static const std::array<int, EMPTY_MASKS> empty_index;  // a pointer to where this tile_mask starts
 
     static constexpr std::array<char, 4> MOVES = {'l', 'u', 'r', 'd'};  // use lowercase to make counting # of 4's placed easier
 

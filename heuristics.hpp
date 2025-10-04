@@ -249,25 +249,27 @@ namespace heuristics {
 
     // generates monotonicity scores for each row
     // rows with larger tiles receive higher scores but also larger penalties in the case where the row isn't monotonic
-    consteval std::array<eval_t, ROWS> gen_monotonicity() {
-        std::array<eval_t, ROWS> monotonicity;
-        for (int row = 0; row < ROWS; ++row) {
-            const int r[4] = {(row >> 12) & 0xF, (row >> 8) & 0xF, (row >> 4) & 0xF, row & 0xF};
-            monotonicity[row] = (1 << r[0]) + (1 << r[1]) + (1 << r[2]) + (1 << r[3]);
-            for (int i = 0; i < 3; ++i) {
-                if (r[i] < r[i + 1]) {
-                    if (r[i] == 0) monotonicity[row] -= 1LL << (3 * r[i + 1] / 2);
-                    else monotonicity[row] -= 1LL << (3 * r[i + 1] - 2 * r[i]);
+    std::array<eval_t, ROWS> gen_monotonicity() {
+        return [] {
+            std::array<eval_t, ROWS> monotonicity{};
+            for (int row = 0; row < ROWS; ++row) {
+                const int r[4] = {(row >> 12) & 0xF, (row >> 8) & 0xF, (row >> 4) & 0xF, row & 0xF};
+                monotonicity[row] = (1 << r[0]) + (1 << r[1]) + (1 << r[2]) + (1 << r[3]);
+                for (int i = 0; i < 3; ++i) {
+                    if (r[i] < r[i + 1]) {
+                        if (r[i] == 0) monotonicity[row] -= 1LL << (3 * r[i + 1] / 2);
+                        else monotonicity[row] -= 1LL << (3 * r[i + 1] - 2 * r[i]);
+                    }
                 }
             }
-        }
-        for (int row = 0; row < ROWS; ++row) {
-            monotonicity[row] = std::max(monotonicity[row], monotonicity[reversed[row]]);
-        }
-        return monotonicity;
+            for (int row = 0; row < ROWS; ++row) {
+                monotonicity[row] = std::max(monotonicity[row], monotonicity[reversed[row]]);
+            }
+            return monotonicity;
+        }();
     }
 
-    constexpr std::array<eval_t, ROWS> monotonicity = gen_monotonicity();
+    const std::array<eval_t, ROWS> monotonicity = gen_monotonicity();
     eval_t monotonicity_heuristic(const board_t board) {
         const board_t transposed_board = transpose(board);
         return std::max(0LL,  // all evaluations should be non-negative
